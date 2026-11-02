@@ -53,16 +53,13 @@ makedepends=(
   python-unidecode
   qt6-tools
 )
-sha256sums=('SKIP'
-            '30fd4ca71626ce5a05985c41abb0d2396e7508501a1ec298351f43ccf23a029c')
+sha256sums=('SKIP')
 # Bootloader
-source=(calamares::"git+${url}.git#branch=cachyos-dev-deckify"
-        "handheld-defaults.patch")
+source=(calamares::"git+${url}.git#branch=cachyos-dev-deckify")
 options=('!emptydirs')
 
 prepare() {
     cd ${srcdir}/calamares
-    patch -Np1 -i "$srcdir/handheld-defaults.patch"
     # change version
     _ver="$(cat CMakeLists.txt | grep -m3 -e "  VERSION" | grep -o "[[:digit:]]*" | xargs | sed s'/ /./g')"
     _ver="$pkgver"
