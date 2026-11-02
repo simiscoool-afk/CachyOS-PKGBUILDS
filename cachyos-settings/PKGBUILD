@@ -4,7 +4,7 @@
 _gitname=CachyOS-Settings
 pkgname=cachyos-settings
 pkgver=1.4.1
-pkgrel=1
+pkgrel=2
 epoch=1
 groups=(cachyos)
 arch=('any')
@@ -12,9 +12,11 @@ license=(GPL-1.0-only)
 makedepends=('coreutils' 'git')
 pkgdesc='CachyOS - Settings'
 url="https://github.com/CachyOS/$_gitname"
-source=("git+$url.git?signed#tag=$pkgver")
+source=("git+$url.git?signed#tag=$pkgver"
+        "audio-pm-upstream.patch")
 install="$pkgname.install"
-sha256sums=('977bb6eb2ed5b56517cdb7cd1a911c3576a7d67d6d48313f9b0997f217ee2427')
+sha256sums=('977bb6eb2ed5b56517cdb7cd1a911c3576a7d67d6d48313f9b0997f217ee2427'
+            '8fc0d53f3b9b29aa8cea30c61fabc691e0f073796fd0ef4ced506ecc360f764f')
 validpgpkeys=(
   E8B9AA39F054E30E8290D492C3C4820857F654FE  # Peter Jung <admin@ptr1337.dev>
   B1B70BB1CD56047DEF31DE2EB62C3D10C54D5DA9  # Vladislav Nepogodin <nepogodin.vlad@gmail.com>
@@ -35,6 +37,8 @@ optdepends=('libluv: for topmem'
 provides=('ntsync-common')
 prepare() {
   cd $_gitname
+  # Backport the already-merged audio power-management fix (#245).
+  patch -Np1 -i "$srcdir/audio-pm-upstream.patch"
 }
 package() {
   install -d "$pkgdir/etc"
