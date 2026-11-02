@@ -1,7 +1,7 @@
 pkgbase = cachyos-handheld
 	pkgdesc = CachyOS - Handheld!
 	pkgver = 1.4.2
-	pkgrel = 1
+	pkgrel = 2
 	url = https://github.com/CachyOS/CachyOS-Handheld
 	install = cachyos-handheld.install
 	arch = any
@@ -11,20 +11,25 @@ pkgbase = cachyos-handheld
 	depends = cachyos-vapor
 	depends = gamescope-session-cachyos
 	depends = jupiter-hw-support
+	depends = konsole
 	depends = lib32-gamescope
 	depends = mangohud
 	depends = mesa-utils
 	depends = plasma-login-manager
+	depends = rtkit
 	depends = scx-scheds
 	depends = steam-jupiter-stable
+	depends = sudo
 	provides = cachyos-deckify
 	replaces = cachyos-deckify
 	options = !strip
 	options = !debug
 	source = git+https://github.com/CachyOS/CachyOS-Handheld?signed#tag=1.4.2
+	source = handheld-update.patch
 	validpgpkeys = E8B9AA39F054E30E8290D492C3C4820857F654FE
 	validpgpkeys = B1B70BB1CD56047DEF31DE2EB62C3D10C54D5DA9
 	validpgpkeys = E18447AC260021D31F3FF6C4C8A2A4774B8B63C4
 	sha256sums = b52ccfab1675d0bea373970fad596efe15269ed0e53e9ffbcebfc27f67aa00b5
+	sha256sums = c92816c610497d2f871cf629976d7584da145d596de5c7c452f3ee0ff176b920
 
 pkgname = cachyos-handheld

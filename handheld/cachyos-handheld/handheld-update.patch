@@ -1,0 +1,94 @@
+diff --git a/README.md b/README.md
+index 3fd8379..6dc707e 100644
+--- a/README.md
++++ b/README.md
+@@ -63,6 +63,25 @@ This generally already works, but swichting the gamesession on Desktops could sh
+ 
+ ## Additonal Information
+ 
++### How can I update without leaving Gaming Mode?
++
++Add **Update CachyOS** to Steam as a non-Steam application once. From a terminal
++in the active user session, this can also be opened with:
++
++```
++steamos-add-to-steam /usr/share/applications/cachyos-handheld-update.desktop
++```
++
++Then launch **Update CachyOS** from Steam's Library in Gaming Mode. It opens a
++full-screen terminal, asks for your account password and confirms a full
++`pacman -Syu` upgrade. Steam + X opens the on-screen keyboard. Save and close
++games first; restart from Steam after kernel or graphics-driver updates.
++
++On Btrfs installations, the normal Snapper pacman hooks create snapshots before
++and after the transaction. This updates repository packages; Flatpaks and AUR
++packages are managed separately. Steam's built-in OS update button still uses
++the existing `holo-update` stub and is not connected to this launcher.
++
+ ### How can I permanently boot to Desktop Mode?
+ 
+ The default handheld behavior starts the Gamescope session on every fresh boot.
+diff --git a/usr/bin/cachyos-handheld-update b/usr/bin/cachyos-handheld-update
+new file mode 100755
+index 0000000..3eaa8a6
+--- /dev/null
++++ b/usr/bin/cachyos-handheld-update
+@@ -0,0 +1,24 @@
++#!/usr/bin/bash
++
++if [[ ${1:-} != --run ]]; then
++    exec konsole --separate --fullscreen -e "$0" --run
++fi
++
++printf 'CachyOS system update\n\nSave your game and close running games before continuing.\n'
++printf 'Use Steam + X to open the on-screen keyboard.\n'
++printf 'Enter your account password when sudo asks for it.\n\n'
++
++# A full upgrade runs the same pacman snapshot hooks as desktop mode.
++# Keep authentication and pacman's transaction confirmation interactive.
++systemd-inhibit --what=sleep:idle --mode=block \
++    --who='CachyOS system update' --why='Updating system packages' \
++    sudo pacman -Syu
++status=$?
++
++if (( status == 0 )); then
++    printf '\nUpdate complete. Restart from Steam after a kernel or driver update.\n'
++else
++    printf '\nUpdate exited with status %s. Review the messages above.\n' "$status"
++fi
++read -r -p 'Press Enter to close this window. ' _
++exit "$status"
+diff --git a/usr/lib/udev/rules.d/70-led-control.rules b/usr/lib/udev/rules.d/70-led-control.rules
+index db1c720..3a0ed36 100644
+--- a/usr/lib/udev/rules.d/70-led-control.rules
++++ b/usr/lib/udev/rules.d/70-led-control.rules
+@@ -1,8 +1,8 @@
+ # LED color write access
+-SUBSYSTEM=="leds", RUN+="/usr/bin/chown 1000:1000 '/sys/class/leds/%k/brightness'"
+-SUBSYSTEM=="leds", RUN+="/usr/bin/chown 1000:1000 '/sys/class/leds/%k/effect'"
+-SUBSYSTEM=="leds", RUN+="/usr/bin/chown 1000:1000 '/sys/class/leds/%k/enabled'"
+-SUBSYSTEM=="leds", RUN+="/usr/bin/chown 1000:1000 '/sys/class/leds/%k/mode'"
+-SUBSYSTEM=="leds", RUN+="/usr/bin/chown 1000:1000 '/sys/class/leds/%k/multi_intensity'"
+-SUBSYSTEM=="leds", RUN+="/usr/bin/chown 1000:1000 '/sys/class/leds/%k/profile'"
+-SUBSYSTEM=="leds", RUN+="/usr/bin/chown 1000:1000 '/sys/class/leds/%k/speed'"
++SUBSYSTEM=="leds", TEST=="/sys/class/leds/%k/brightness", RUN+="/usr/bin/chown 1000:1000 '/sys/class/leds/%k/brightness'"
++SUBSYSTEM=="leds", TEST=="/sys/class/leds/%k/effect", RUN+="/usr/bin/chown 1000:1000 '/sys/class/leds/%k/effect'"
++SUBSYSTEM=="leds", TEST=="/sys/class/leds/%k/enabled", RUN+="/usr/bin/chown 1000:1000 '/sys/class/leds/%k/enabled'"
++SUBSYSTEM=="leds", TEST=="/sys/class/leds/%k/mode", RUN+="/usr/bin/chown 1000:1000 '/sys/class/leds/%k/mode'"
++SUBSYSTEM=="leds", TEST=="/sys/class/leds/%k/multi_intensity", RUN+="/usr/bin/chown 1000:1000 '/sys/class/leds/%k/multi_intensity'"
++SUBSYSTEM=="leds", TEST=="/sys/class/leds/%k/profile", RUN+="/usr/bin/chown 1000:1000 '/sys/class/leds/%k/profile'"
++SUBSYSTEM=="leds", TEST=="/sys/class/leds/%k/speed", RUN+="/usr/bin/chown 1000:1000 '/sys/class/leds/%k/speed'"
+diff --git a/usr/share/applications/cachyos-handheld-update.desktop b/usr/share/applications/cachyos-handheld-update.desktop
+new file mode 100644
+index 0000000..30edee5
+--- /dev/null
++++ b/usr/share/applications/cachyos-handheld-update.desktop
+@@ -0,0 +1,8 @@
++[Desktop Entry]
++Name=Update CachyOS
++Comment=Update system packages from desktop or gaming mode
++Exec=/usr/bin/cachyos-handheld-update
++Icon=system-software-update
++Terminal=false
++Type=Application
++Categories=System;
