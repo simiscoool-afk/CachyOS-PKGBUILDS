@@ -1,0 +1,77 @@
+diff --git a/usr/bin/steamos-session-select b/usr/bin/steamos-session-select
+index 96cc0c8..76ceab0 100755
+--- a/usr/bin/steamos-session-select
++++ b/usr/bin/steamos-session-select
+@@ -14,7 +14,6 @@ case "$1" in
+         qdbus6 org.kde.Shutdown /Shutdown org.kde.Shutdown.logout;;
+     'plasma')
+         pkexec /usr/lib/steamos/steam-set-session plasma.desktop
+-        steam -shutdown
+         systemctl --user stop gamescope-session.target;;
+     *)
+         [[ -n "$1" ]] && echo -e "Unknown session '$1'\n"
+diff --git a/usr/lib/steamos/steam-set-session b/usr/lib/steamos/steam-set-session
+index b082209..00e8d71 100755
+--- a/usr/lib/steamos/steam-set-session
++++ b/usr/lib/steamos/steam-set-session
+@@ -2,17 +2,26 @@
+ set -e
+ 
+ DISPLAY_MANAGER="$(systemctl show -p Id --value display-manager)"
++# Restrict the privileged helper to the two supported sessions.
++SESSION="${1:-gamescope-session.desktop}"
++case "$SESSION" in
++    gamescope-session.desktop|plasma.desktop) ;;
++    *) echo "Unsupported session: $SESSION" >&2; exit 1;;
++esac
++
+ case "${DISPLAY_MANAGER%.service}" in
+-    plasmalogin) CONF_FILE="/etc/plasmalogin.conf.d/zz-steamos-autologin.conf";;
++    plasmalogin)
++        # Plasma Login Manager enumerates drop-ins only once at startup. A new
++        # drop-in created on the first switch is therefore ignored until restart.
++        # Its main config path is always loaded, including when initially absent.
++        kwriteconfig6 --file /etc/plasmalogin.conf --group Autologin --key Session "$SESSION"
++        exit 0;;
+     sddm) CONF_FILE="/etc/sddm.conf.d/zz-steamos-autologin.conf";;
+ esac
+ 
+ # Don't do anything if system is using unsupported display manager
+ [[ -z "$CONF_FILE" ]] && exit 0
+ 
+-# Session, gamescope or plasma
+-SESSION="${1:-gamescope-session.desktop}"
+-
+ if [[ ! -d "$(dirname "$CONF_FILE")" ]]; then
+     mkdir -p "$(dirname "$CONF_FILE")"
+ fi
+diff --git a/usr/lib/systemd/user/gamescope-xbindkeys.service b/usr/lib/systemd/user/gamescope-xbindkeys.service
+index 520ca28..6cb05de 100644
+--- a/usr/lib/systemd/user/gamescope-xbindkeys.service
++++ b/usr/lib/systemd/user/gamescope-xbindkeys.service
+@@ -1,4 +1,5 @@
+ [Unit]
++ConditionFileIsExecutable=/usr/bin/xbindkeys
+ Description=Xbindkeys for Gamescope session
+ PartOf=graphical-session.target
+ After=graphical-session.target
+diff --git a/usr/lib/systemd/user/ibus-gamescope.service b/usr/lib/systemd/user/ibus-gamescope.service
+index f1cc262..5d9e28f 100644
+--- a/usr/lib/systemd/user/ibus-gamescope.service
++++ b/usr/lib/systemd/user/ibus-gamescope.service
+@@ -1,4 +1,5 @@
+ [Unit]
++ConditionFileIsExecutable=/usr/bin/ibus-daemon
+ Description=Wrapper for Ibus
+ PartOf=graphical-session.target
+ After=graphical-session.target
+diff --git a/usr/lib/systemd/user/steam-notif-daemon.service b/usr/lib/systemd/user/steam-notif-daemon.service
+index a432f0f..5a75011 100644
+--- a/usr/lib/systemd/user/steam-notif-daemon.service
++++ b/usr/lib/systemd/user/steam-notif-daemon.service
+@@ -1,4 +1,5 @@
+ [Unit]
++ConditionFileIsExecutable=/usr/bin/steam_notif_daemon
+ Description=Steam Notification Daemon
+ After=graphical-session.target
+ PartOf=graphical-session.target

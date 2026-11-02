@@ -1,7 +1,7 @@
 pkgbase = gamescope-session-cachyos
 	pkgdesc = Steam Big Picture session based on gamescope from SteamOS
 	pkgver = 1.1.6
-	pkgrel = 1
+	pkgrel = 2
 	url = https://github.com/CachyOS/gamescope-session
 	arch = any
 	license = MIT
@@ -11,6 +11,7 @@ pkgbase = gamescope-session-cachyos
 	depends = dbus
 	depends = gamescope
 	depends = jupiter-hw-support>=20260211.1-2
+	depends = kconfig
 	depends = python
 	depends = steam
 	depends = systemd
@@ -23,6 +24,8 @@ pkgbase = gamescope-session-cachyos
 	conflicts = gamescope-session-git
 	conflicts = gamescope-session-steam-git
 	source = gamescope-session-cachyos::git+https://github.com/CachyOS/gamescope-session.git#tag=1.1.6
+	source = session-cleanup.patch
 	sha256sums = 6ade88ca4c6e66713010ccfcbc57be82037721f2ac13486b20a14f67267a7da1
+	sha256sums = f4dbb02c02f1ad3f985636eab48b7e26e8661bc89180e96a52b646a4b17effa2
 
 pkgname = gamescope-session-cachyos

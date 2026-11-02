@@ -2,7 +2,7 @@
 
 pkgname=gamescope-session-cachyos
 pkgver=1.1.6
-pkgrel=1
+pkgrel=2
 pkgdesc="Steam Big Picture session based on gamescope from SteamOS"
 arch=('any')
 url="https://github.com/CachyOS/gamescope-session"
@@ -13,6 +13,7 @@ depends=(
     'dbus'
     'gamescope'
     'jupiter-hw-support>=20260211.1-2'
+    'kconfig'
     'python'
     'steam'
     'systemd'
@@ -26,12 +27,15 @@ optdepends=(
 )
 provides=('gamescope-session-git' 'gamescope-session-steam-git')
 conflicts=('gamescope-session-git' 'gamescope-session-steam-git')
-source=("${pkgname}::git+${url}.git#tag=${pkgver}")
-sha256sums=('6ade88ca4c6e66713010ccfcbc57be82037721f2ac13486b20a14f67267a7da1')
+source=("${pkgname}::git+${url}.git#tag=${pkgver}"
+        "session-cleanup.patch")
+sha256sums=('6ade88ca4c6e66713010ccfcbc57be82037721f2ac13486b20a14f67267a7da1'
+            'f4dbb02c02f1ad3f985636eab48b7e26e8661bc89180e96a52b646a4b17effa2')
 
 prepare() {
     cd "${pkgname}"
     git cherry-pick -n aea6a6cced80
+    patch -Np1 -i "$srcdir/session-cleanup.patch"
 }
 
 package() {
