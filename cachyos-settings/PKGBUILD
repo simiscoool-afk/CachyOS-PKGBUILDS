@@ -38,6 +38,7 @@ provides=('ntsync-common')
 prepare() {
   cd $_gitname
   # Backport the already-merged audio power-management fix (#245).
+  # https://github.com/CachyOS/CachyOS-Settings/commit/c8e575bbd430c3fb382e76681516428a0b1206f6
   patch -Np1 -i "$srcdir/audio-pm-upstream.patch"
 }
 package() {
