@@ -16,6 +16,7 @@ pkgbase = cachyos-handheld
 	depends = mangohud
 	depends = mesa-utils
 	depends = plasma-login-manager
+	depends = python-vdf
 	depends = rtkit
 	depends = scx-scheds
 	depends = steam-jupiter-stable
@@ -30,6 +31,6 @@ pkgbase = cachyos-handheld
 	validpgpkeys = B1B70BB1CD56047DEF31DE2EB62C3D10C54D5DA9
 	validpgpkeys = E18447AC260021D31F3FF6C4C8A2A4774B8B63C4
 	sha256sums = b52ccfab1675d0bea373970fad596efe15269ed0e53e9ffbcebfc27f67aa00b5
-	sha256sums = c92816c610497d2f871cf629976d7584da145d596de5c7c452f3ee0ff176b920
+	sha256sums = 7a48aebe8c09e1fd12578663b45f57232bc37724553ec89f2f27b53e880d59e3
 
 pkgname = cachyos-handheld
