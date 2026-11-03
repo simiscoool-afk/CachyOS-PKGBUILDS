@@ -15,7 +15,7 @@ options=(!strip !debug)
 provides=('cachyos-deckify')
 replaces=('cachyos-deckify')
 sha256sums=('b52ccfab1675d0bea373970fad596efe15269ed0e53e9ffbcebfc27f67aa00b5'
-            '8ab3932d72fe01b72fc061478f2d963e0680fe9d3d573883b6814c5fb6f083c5')
+            '6b548da629852856e556a2b0869e1cdee0d8302c5733914df1e511da7b608abf')
 validpgpkeys=(
   E8B9AA39F054E30E8290D492C3C4820857F654FE  # Peter Jung <admin@ptr1337.dev>
   B1B70BB1CD56047DEF31DE2EB62C3D10C54D5DA9  # Vladislav Nepogodin <nepogodin.vlad@gmail.com>

@@ -49,6 +49,58 @@ index 3fd8379..890d19f 100644
  ### How can I permanently boot to Desktop Mode?
  
  The default handheld behavior starts the Gamescope session on every fresh boot.
+diff --git a/tests/steam_fixture.py b/tests/steam_fixture.py
+new file mode 100755
+index 0000000..abe449f
+--- /dev/null
++++ b/tests/steam_fixture.py
+@@ -0,0 +1,46 @@
++#!/usr/bin/python
++"""Subprocess stand-ins for the systemd activation test."""
++
++import ctypes
++import importlib.machinery
++import importlib.util
++import json
++import os
++from pathlib import Path
++import sys
++from unittest.mock import patch
++
++import vdf
++
++
++if sys.argv[1] == "--client":
++    assert ctypes.CDLL(None).prctl(15, b"steam", 0, 0, 0) == 0
++    print(os.getpid(), flush=True)
++    sys.stdin.read()
++    sys.exit(0)
++
++base = Path(os.environ["CACHYOS_TEST_DIR"])
++if sys.argv[1] == "--setup":
++    sys.dont_write_bytecode = True
++    script = Path(__file__).resolve().parents[1] / "usr/lib/cachyos-handheld/setup-steam-updater"
++    loader = importlib.machinery.SourceFileLoader("registration", str(script))
++    spec = importlib.util.spec_from_loader(loader.name, loader)
++    setup = importlib.util.module_from_spec(spec)
++    loader.exec_module(setup)
++    setup.ADD_SHORTCUT_HELPER = str(Path(__file__).resolve())
++    setup.CHECK_SECONDS, setup.RETRY_SECONDS, setup.SETUP_SECONDS = 0.05, 0.2, 3
++    with patch.object(Path, "home", return_value=base / "home"):
++        sys.exit(setup.main())
++
++account = base.joinpath("selected").read_text()
++requests = base / "requests.json"
++counts = json.loads(requests.read_text()) if requests.exists() else {}
++counts[account] = counts.get(account, 0) + 1
++requests.write_text(json.dumps(counts))
++if counts[account] == 1:
++    sys.exit(0)  # Accept the first request without saving it, to exercise retries.
++shortcuts = base / "home/Steam/userdata" / account / "config/shortcuts.vdf"
++with shortcuts.open("rb") as stream:
++    data = vdf.binary_load(stream)
++data["shortcuts"]["1"] = {"AppName": "Update CachyOS", "Exe": '"/usr/bin/cachyos-handheld-update"'}
++shortcuts.write_bytes(vdf.binary_dumps(data))
 diff --git a/tests/test_handheld_update.py b/tests/test_handheld_update.py
 new file mode 100644
 index 0000000..c8e09da
@@ -93,19 +145,17 @@ index 0000000..c8e09da
 +    unittest.main()
 diff --git a/tests/test_steam_updater_setup.py b/tests/test_steam_updater_setup.py
 new file mode 100644
-index 0000000..83064ca
+index 0000000..d6a92fc
 --- /dev/null
 +++ b/tests/test_steam_updater_setup.py
-@@ -0,0 +1,236 @@
+@@ -0,0 +1,209 @@
 +import importlib.machinery
 +import importlib.util
 +import json
 +import os
 +from pathlib import Path
 +import subprocess
-+import sys
 +import tempfile
-+import time
 +import unittest
 +from unittest.mock import patch
 +
@@ -117,6 +167,7 @@ index 0000000..83064ca
 +SPEC = importlib.util.spec_from_loader(LOADER.name, LOADER)
 +setup = importlib.util.module_from_spec(SPEC)
 +LOADER.exec_module(setup)
++detect_steam_process = setup.steam_process
 +
 +
 +class RegistrationTests(unittest.TestCase):
@@ -132,12 +183,8 @@ index 0000000..83064ca
 +        self.state.mkdir()
 +        self.user(1, "first")
 +        self.select("first")
-+        self.client = patch.object(setup, "steam_process", return_value="launch-one")
-+        self.client.start()
-+        self.addCleanup(self.client.stop)
-+        self.request = patch.object(setup.subprocess, "run")
-+        self.run = self.request.start()
-+        self.addCleanup(self.request.stop)
++        self.client = self.enterContext(patch.object(setup, "steam_process", return_value="launch-one"))
++        self.run = self.enterContext(patch.object(setup.subprocess, "run"))
 +
 +    def write_vdf(self, path, data):
 +        path.write_text(vdf.dumps(data), encoding="utf-8")
@@ -163,6 +210,9 @@ index 0000000..83064ca
 +    def tick(self, now=0):
 +        return setup.setup(self.home, self.state, now)
 +
++    def registered(self, account=1):
++        return json.loads(self.state.joinpath(f"{account}.json").read_text()).get("registered", False)
++
 +    def test_saved_timestamps_do_not_block_automatic_login(self):
 +        self.user(1, "first", timestamp="99")
 +        self.tick()
@@ -186,18 +236,17 @@ index 0000000..83064ca
 +        self.tick()
 +        self.run.assert_called_once()
 +        self.assertEqual(other.read_bytes(), original)
-+        self.assertFalse(json.loads(self.state.joinpath("1.json").read_text()).get("registered"))
-+        # Simulate Steam persisting the requested shortcut, not the setup helper.
++        self.assertFalse(self.registered())
 +        self.shortcuts(1, [{"Exe": f'"{setup.EXECUTABLE}"'}])
-+        self.tick()
-+        self.assertTrue(json.loads(self.state.joinpath("1.json").read_text())["registered"])
++        self.assertEqual(self.tick(setup.RETRY_SECONDS), "done")
++        self.assertTrue(self.registered())
 +        self.run.assert_called_once()
 +
 +    def test_existing_manual_shortcut_is_not_duplicated(self):
 +        self.shortcuts(1, [{"AppName": "Renamed updater", "Exe": setup.EXECUTABLE}])
 +        self.tick()
 +        self.run.assert_not_called()
-+        self.assertTrue(json.loads(self.state.joinpath("1.json").read_text())["registered"])
++        self.assertTrue(self.registered())
 +
 +    def test_removed_registered_shortcut_stays_removed(self):
 +        path = self.shortcuts(1, [{"ShortcutPath": setup.LAUNCHER}])
@@ -226,7 +275,7 @@ index 0000000..83064ca
 +        self.run.side_effect = subprocess.CalledProcessError(1, "steam")
 +        with self.assertRaises(subprocess.CalledProcessError):
 +            self.tick()
-+        self.assertFalse(json.loads(self.state.joinpath("1.json").read_text()).get("registered"))
++        self.assertFalse(self.registered())
 +        self.run.side_effect = None
 +        self.tick(setup.RETRY_SECONDS)
 +        self.assertEqual(self.run.call_count, 2)
@@ -251,12 +300,6 @@ index 0000000..83064ca
 +        self.tick(1001)
 +        self.assertEqual(self.run.call_count, setup.MAX_ATTEMPTS + 1)
 +
-+    def test_shortcut_saved_late_is_confirmed_without_another_request(self):
-+        self.tick()
-+        self.shortcuts(1, [{"Exe": setup.EXECUTABLE}])
-+        self.assertEqual(self.tick(setup.RETRY_SECONDS), "done")
-+        self.run.assert_called_once()
-+
 +    def test_missing_login_files_can_appear_during_the_bounded_window(self):
 +        login_file = self.root / "config/loginusers.vdf"
 +        login_file.unlink()
@@ -273,7 +316,7 @@ index 0000000..83064ca
 +             patch.object(setup.time, "sleep", side_effect=advance):
 +            setup.register(self.home, self.state)
 +        self.run.assert_called_once()
-+        self.assertTrue(json.loads(self.state.joinpath("1.json").read_text())["registered"])
++        self.assertTrue(self.registered())
 +
 +    def test_waiting_for_authentication_has_a_deadline(self):
 +        self.select("")
@@ -285,26 +328,8 @@ index 0000000..83064ca
 +        self.assertGreaterEqual(clock[0], setup.SETUP_SECONDS)
 +        self.assertLess(clock[0], setup.SETUP_SECONDS + setup.CHECK_SECONDS)
 +
-+    def test_real_process_detection_and_fresh_login_files(self):
-+        self.client.stop()
-+        child = subprocess.Popen([
-+            sys.executable, "-c",
-+            'import ctypes,os,sys; '
-+            'assert ctypes.CDLL(None).prctl(15,b"steam",0,0,0)==0; '
-+            'print(os.getpid(),flush=True); sys.stdin.read()'
-+        ], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
-+        def cleanup():
-+            child.terminate()
-+            child.communicate(timeout=5)
-+
-+        self.addCleanup(cleanup)
-+        self.home.joinpath(".steam/steam.pid").write_text(child.stdout.readline())
-+        self.user(1, "first", timestamp=str(int(time.time())))
-+        self.tick()
-+        self.run.assert_called_once()
-+
 +    def test_real_process_detection_ignores_an_unrelated_pid(self):
-+        self.client.stop()
++        self.client.side_effect = detect_steam_process
 +        self.home.joinpath(".steam/steam.pid").write_text(str(os.getpid()))
 +        self.assertEqual(self.tick(), "idle")
 +        self.run.assert_not_called()
@@ -335,15 +360,11 @@ index 0000000..83064ca
 +    unittest.main()
 diff --git a/tests/test_updater_activation.py b/tests/test_updater_activation.py
 new file mode 100644
-index 0000000..986209b
+index 0000000..cc2c638
 --- /dev/null
 +++ b/tests/test_updater_activation.py
-@@ -0,0 +1,164 @@
-+"""Opt-in integration test using real user units and a fake Steam client.
-+
-+Run with RUN_SYSTEMD_TESTS=1 python -m unittest discover -s tests -v.
-+Only the temporary test units and fixture directories are changed.
-+"""
+@@ -0,0 +1,112 @@
++"""Run with RUN_SYSTEMD_TESTS=1; uses temporary user units and simulated Steam accounts."""
 +
 +import json
 +import os
@@ -354,20 +375,19 @@ index 0000000..986209b
 +import tempfile
 +import time
 +import unittest
-+import uuid
 +
 +import vdf
 +
 +
 +ROOT = Path(__file__).resolve().parents[1]
-+SCRIPT = ROOT / "usr/lib/cachyos-handheld/setup-steam-updater"
++FIXTURE = Path(__file__).with_name("steam_fixture.py")
 +UNITS = ROOT / "usr/lib/systemd/user"
 +
 +
 +@unittest.skipUnless(os.environ.get("RUN_SYSTEMD_TESTS") == "1", "requires an active systemd user manager")
 +class ActivationTest(unittest.TestCase):
 +    def ctl(self, *args):
-+        return subprocess.run(["systemctl", "--user", *args], check=True, capture_output=True, text=True)
++        return subprocess.run(["systemctl", "--user", *args], check=True, capture_output=True, text=True).stdout.strip()
 +
 +    def wait_for(self, predicate):
 +        deadline = time.monotonic() + 10
@@ -377,142 +397,94 @@ index 0000000..986209b
 +            time.sleep(0.05)
 +        self.fail("Timed out waiting for the registration service")
 +
++    def wait_inactive(self):
++        self.wait_for(lambda: self.ctl("show", self.unit + ".service", "-p", "ActiveState", "--value") == "inactive")
++
++    def setUp(self):
++        temporary = tempfile.TemporaryDirectory(prefix="cachyos-updater-test-")
++        self.addCleanup(temporary.cleanup)
++        self.base = Path(temporary.name)
++        self.home = self.base / "home"
++        self.steam = self.home / "Steam"
++        self.steam.mkdir(parents=True)
++        self.requests = self.base / "requests.json"
++        self.users = {}
++        self.unit = self.base.name
++        runtime = Path(os.environ["XDG_RUNTIME_DIR"]) / "systemd/user"
++        runtime.mkdir(parents=True, exist_ok=True)
++        self.addCleanup(self.ctl, "daemon-reload")
++        for suffix in ("service", "path"):
++            text = UNITS.joinpath(f"cachyos-handheld-updater-setup.{suffix}").read_text()
++            text = text.replace("%h", str(self.home)).replace("cachyos-handheld-updater-setup", self.unit)
++            if suffix == "service":
++                text = text.replace("ExecStart=/usr/lib/cachyos-handheld/setup-steam-updater",
++                                    "ExecStart=" + shlex.join([sys.executable, str(FIXTURE), "--setup"]))
++                text = text.replace("/usr/share/applications/cachyos-handheld-update.desktop",
++                                    str(ROOT / "usr/share/applications/cachyos-handheld-update.desktop"))
++                text += f"\n[Service]\nEnvironment=CACHYOS_TEST_DIR={self.base}\nEnvironment=XDG_STATE_HOME={self.base / 'state'}\n"
++            path = runtime / f"{self.unit}.{suffix}"
++            path.write_text(text)
++            self.addCleanup(path.unlink, missing_ok=True)
++        self.addCleanup(self.ctl, "stop", self.unit + ".path", self.unit + ".service")
++        self.ctl("daemon-reload")
++        self.ctl("start", self.unit + ".path")
++
++    def login(self, account):
++        self.base.joinpath("selected").write_text(str(account))
++        config = self.steam / "userdata" / str(account) / "config"
++        config.mkdir(parents=True)
++        shortcuts = config / "shortcuts.vdf"
++        shortcuts.write_bytes(vdf.binary_dumps({"shortcuts": {
++            "0": {"AppName": "Keep me", "Exe": '"/usr/bin/keep-me"'}}}))
++        self.steam.joinpath("config").mkdir(exist_ok=True)
++        self.users[str(76561197960265728 + account)] = {"AccountName": f"account{account}", "Timestamp": "101"}
++        self.home.joinpath(".steam/registry.vdf").write_text(vdf.dumps({
++            "Registry": {"HKCU": {"Software": {"Valve": {"Steam": {"AutoLoginUser": f"account{account}"}}}}}}))
++        self.steam.joinpath("config/loginusers.vdf").write_text(vdf.dumps({"users": self.users}))
++        marker = self.base / "state/cachyos-handheld/steam-updater" / f"{account}.json"
++        self.wait_for(lambda: marker.exists() and json.loads(marker.read_text()).get("registered"))
++        with shortcuts.open("rb") as stream:
++            entries = vdf.binary_load(stream)["shortcuts"]
++        self.assertEqual(entries["0"]["AppName"], "Keep me")
++        self.assertEqual(len(entries), 2)
++        self.assertEqual(json.loads(self.requests.read_text())[str(account)], 2)
++        self.wait_inactive()
++        return shortcuts
++
 +    def test_new_login_retries_confirmation_and_handles_two_accounts(self):
-+        with tempfile.TemporaryDirectory(prefix="cachyos-updater-test-") as temporary:
-+            base = Path(temporary)
-+            home = base / "home"
-+            home.mkdir()
-+            steam = home / "Steam"
-+            steam.mkdir()
-+            state = base / "state/cachyos-handheld/steam-updater"
-+            requests = base / "requests.json"
-+            selected = base / "selected"
-+            backend = base / "fake-add"
-+            backend.write_text(f'''#!{sys.executable}
-+import json
-+from pathlib import Path
-+import vdf
-+calls = Path({str(requests)!r})
-+account = Path({str(selected)!r}).read_text()
-+counts = json.loads(calls.read_text()) if calls.exists() else {{}}
-+counts[account] = counts.get(account, 0) + 1
-+calls.write_text(json.dumps(counts))
-+if counts[account] == 1:
-+    raise SystemExit(0)  # Accepted request that did not add anything.
-+path = Path({str(steam)!r}) / 'userdata' / account / 'config/shortcuts.vdf'
-+with path.open('rb') as stream:
-+    data = vdf.binary_load(stream)
-+data['shortcuts']['1'] = {{'AppName': 'Update CachyOS', 'Exe': '"/usr/bin/cachyos-handheld-update"'}}
-+path.write_bytes(vdf.binary_dumps(data))
-+''')
-+            backend.chmod(0o755)
-+            runner = base / "runner.py"
-+            runner.write_text(f'''
-+import importlib.machinery, importlib.util, sys
-+sys.dont_write_bytecode = True
-+from pathlib import Path
-+from unittest.mock import patch
-+loader = importlib.machinery.SourceFileLoader('registration', {str(SCRIPT)!r})
-+spec = importlib.util.spec_from_loader(loader.name, loader)
-+module = importlib.util.module_from_spec(spec)
-+loader.exec_module(module)
-+module.ADD_SHORTCUT_HELPER = {str(backend)!r}
-+module.CHECK_SECONDS = 0.05
-+module.RETRY_SECONDS = 0.2
-+module.SETUP_SECONDS = 3
-+with patch.object(Path, 'home', return_value=Path({str(home)!r})):
-+    raise SystemExit(module.main())
-+''')
-+            unit = "cachyos-updater-test-" + uuid.uuid4().hex
-+            runtime_units = Path(os.environ["XDG_RUNTIME_DIR"]) / "systemd/user"
-+            runtime_units.mkdir(parents=True, exist_ok=True)
-+            service_file = runtime_units / (unit + ".service")
-+            path_file = runtime_units / (unit + ".path")
-+            service = (UNITS / "cachyos-handheld-updater-setup.service").read_text()
-+            service = service.replace("ExecStart=/usr/lib/cachyos-handheld/setup-steam-updater",
-+                                      "ExecStart=" + shlex.join([sys.executable, str(runner)]))
-+            service = service.replace("/usr/share/applications/cachyos-handheld-update.desktop",
-+                                      str(ROOT / "usr/share/applications/cachyos-handheld-update.desktop"))
-+            service += f'\n[Service]\nEnvironment=XDG_STATE_HOME={base / "state"}\n'
-+            service_file.write_text(service)
-+            path_file.write_text((UNITS / "cachyos-handheld-updater-setup.path").read_text()
-+                                 .replace("%h", str(home)).replace("cachyos-handheld-updater-setup", unit))
-+            child = None
-+            try:
-+                self.ctl("daemon-reload")
-+                self.ctl("start", unit + ".path")
-+                home.joinpath(".steam").mkdir()
-+                home.joinpath(".steam/steam").symlink_to(steam)
-+                child = subprocess.Popen([
-+                    sys.executable, "-c",
-+                    'import ctypes,os,sys; '
-+                    'assert ctypes.CDLL(None).prctl(15,b"steam",0,0,0)==0; '
-+                    'print(os.getpid(),flush=True); sys.stdin.read()'
-+                ], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
-+                home.joinpath(".steam/steam.pid").write_text(child.stdout.readline())
-+                self.wait_for(lambda: self.ctl("show", unit + ".service", "-p", "ActiveState", "--value").stdout.strip() == "activating")
-+                self.assertFalse(requests.exists())
-+
-+                users = {}
-+
-+                def login(account):
-+                    selected.write_text(str(account))
-+                    config = steam / "userdata" / str(account) / "config"
-+                    config.mkdir(parents=True, exist_ok=True)
-+                    shortcuts = config / "shortcuts.vdf"
-+                    shortcuts.write_bytes(vdf.binary_dumps({"shortcuts": {
-+                        "0": {"AppName": "Keep me", "Exe": '"/usr/bin/keep-me"'}}}))
-+                    steam.joinpath("config").mkdir(exist_ok=True)
-+                    users[str(76561197960265728 + account)] = {
-+                        "AccountName": f"account{account}", "Timestamp": str(int(time.time()))}
-+                    home.joinpath(".steam/registry.vdf").write_text(vdf.dumps({
-+                        "Registry": {"HKCU": {"Software": {"Valve": {"Steam": {
-+                            "AutoLoginUser": f"account{account}"}}}}}}))
-+                    steam.joinpath("config/loginusers.vdf").write_text(vdf.dumps({"users": users}))
-+                    self.wait_for(lambda: state.joinpath(f"{account}.json").exists()
-+                                  and json.loads(state.joinpath(f"{account}.json").read_text()).get("registered"))
-+                    with shortcuts.open("rb") as stream:
-+                        entries = vdf.binary_load(stream)["shortcuts"]
-+                    self.assertEqual(entries["0"]["AppName"], "Keep me")
-+                    self.assertEqual(len(entries), 2)
-+                    self.assertEqual(json.loads(requests.read_text())[str(account)], 2)
-+                    return shortcuts
-+
-+                first = login(1)
-+                self.wait_for(lambda: self.ctl("show", unit + ".service", "-p", "ActiveState", "--value").stdout.strip() == "inactive")
-+                second = login(2)
-+                self.wait_for(lambda: self.ctl("show", unit + ".service", "-p", "ActiveState", "--value").stdout.strip() == "inactive")
-+                before = requests.read_bytes()
-+                # Simulate the user removing the shortcut, then another login event.
-+                second.write_bytes(vdf.binary_dumps({"shortcuts": {}}))
-+                steam.joinpath("config/loginusers.vdf").touch()
-+                time.sleep(0.5)
-+                self.assertEqual(requests.read_bytes(), before)
-+                self.ctl("stop", unit + ".path")
-+                start = self.ctl("show", unit + ".service", "-p", "ExecMainStartTimestampMonotonic", "--value").stdout
-+                steam.joinpath("config/loginusers.vdf").touch()
-+                time.sleep(0.5)
-+                self.assertEqual(self.ctl("show", unit + ".service", "-p", "ExecMainStartTimestampMonotonic", "--value").stdout, start)
-+                with first.open("rb") as stream:
-+                    self.assertEqual(len(vdf.binary_load(stream)["shortcuts"]), 2)
-+            finally:
-+                self.ctl("stop", unit + ".path", unit + ".service")
-+                if child is not None:
-+                    child.terminate()
-+                    child.communicate(timeout=5)
-+                service_file.unlink(missing_ok=True)
-+                path_file.unlink(missing_ok=True)
-+                self.ctl("daemon-reload")
++        self.home.joinpath(".steam").mkdir()
++        self.home.joinpath(".steam/steam").symlink_to(self.steam)
++        child = subprocess.Popen([sys.executable, str(FIXTURE), "--client"],
++                                 stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
++        self.addCleanup(lambda: child.communicate(timeout=5))
++        self.addCleanup(child.terminate)
++        self.home.joinpath(".steam/steam.pid").write_text(child.stdout.readline())
++        self.wait_for(lambda: self.ctl("show", self.unit + ".service", "-p", "ActiveState", "--value") == "activating")
++        self.assertFalse(self.requests.exists())
++        first, second = self.login(1), self.login(2)
++        before = self.requests.read_bytes()
++        second.write_bytes(vdf.binary_dumps({"shortcuts": {}}))
++        login_file = self.steam / "config/loginusers.vdf"
++        login_file.touch()
++        time.sleep(0.5)
++        self.wait_inactive()
++        self.assertEqual(self.requests.read_bytes(), before)
++        self.ctl("stop", self.unit + ".path")
++        started = self.ctl("show", self.unit + ".service", "-p", "ExecMainStartTimestampMonotonic", "--value")
++        login_file.touch()
++        time.sleep(0.5)
++        self.assertEqual(self.ctl("show", self.unit + ".service", "-p", "ExecMainStartTimestampMonotonic", "--value"), started)
++        with first.open("rb") as stream:
++            self.assertEqual(len(vdf.binary_load(stream)["shortcuts"]), 2)
 diff --git a/usr/bin/cachyos-handheld-update b/usr/bin/cachyos-handheld-update
 new file mode 100755
-index 0000000..4aa3311
+index 0000000..95bd9e1
 --- /dev/null
 +++ b/usr/bin/cachyos-handheld-update
-@@ -0,0 +1,28 @@
+@@ -0,0 +1,25 @@
 +#!/usr/bin/bash
 +
-+# Steam's overlay and runtime libraries must not be injected into the terminal
-+# or the host package-management commands it runs.
++# Use host libraries instead of Steam's overlay and runtime.
 +unset LD_PRELOAD LD_LIBRARY_PATH
 +
 +if [[ ${1:-} != --run ]]; then
@@ -523,8 +495,6 @@ index 0000000..4aa3311
 +printf 'Use Steam + X to open the on-screen keyboard.\n'
 +printf 'Enter your account password when sudo asks for it.\n\n'
 +
-+# A full upgrade runs the same pacman snapshot hooks as desktop mode.
-+# Keep authentication and pacman's transaction confirmation interactive.
 +systemd-inhibit --what=sleep:idle --mode=block \
 +    --who='CachyOS system update' --why='Updating system packages' \
 +    sudo pacman -Syu
@@ -539,10 +509,10 @@ index 0000000..4aa3311
 +exit "$status"
 diff --git a/usr/lib/cachyos-handheld/setup-steam-updater b/usr/lib/cachyos-handheld/setup-steam-updater
 new file mode 100755
-index 0000000..3718ee4
+index 0000000..9dc49be
 --- /dev/null
 +++ b/usr/lib/cachyos-handheld/setup-steam-updater
-@@ -0,0 +1,162 @@
+@@ -0,0 +1,159 @@
 +#!/usr/bin/python
 +"""Register the updater through Steam, once per local Steam account."""
 +
@@ -605,9 +575,7 @@ index 0000000..3718ee4
 +            continue
 +        account = int(steam_id) - STEAM_ID_BASE
 +        if 0 < account < 2**32 and root.joinpath("userdata", str(account), "config").is_dir():
-+            # Steam reuses Timestamp during automatic login. File changes, not
-+            # that timestamp, identify a new setup attempt. Steam itself decides
-+            # when it can accept the shortcut; confirmation is checked below.
++            # Automatic logins reuse Timestamp; use the file revision instead.
 +            return str(account), str(login_file.stat().st_mtime_ns)
 +    return None
 +
@@ -661,7 +629,6 @@ index 0000000..3718ee4
 +    state.update(attempts=state["attempts"] + 1, requested_at=now)
 +    save_state(state_file, state)
 +    subprocess.run([ADD_SHORTCUT_HELPER, LAUNCHER], check=True, timeout=10)
-+    # Only mark registration complete after Steam's own database confirms it.
 +    return "waiting"
 +
 +
