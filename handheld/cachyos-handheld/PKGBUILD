@@ -42,7 +42,6 @@ depends=(
 prepare() {
   cd "$srcdir/CachyOS-Handheld"
   git revert -n a2a30f431137228906b507d034dd799628b40315
-  # https://github.com/CachyOS/CachyOS-Handheld/compare/main...simiscoool-afk:handheld-experience-cleanup
   patch -Np1 -i "$srcdir/handheld-update.patch"
 }
 
