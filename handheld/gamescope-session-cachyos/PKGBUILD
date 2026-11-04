@@ -35,7 +35,6 @@ sha256sums=('6ade88ca4c6e66713010ccfcbc57be82037721f2ac13486b20a14f67267a7da1'
 prepare() {
     cd "${pkgname}"
     git cherry-pick -n aea6a6cced80
-    # https://github.com/CachyOS/gamescope-session/compare/cachyos...simiscoool-afk:handheld-experience-cleanup
     patch -Np1 -i "$srcdir/session-cleanup.patch"
 }
 
