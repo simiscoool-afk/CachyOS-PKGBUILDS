@@ -10,13 +10,13 @@ pkgbase = gamescope-session-cachyos
 	depends = coreutils
 	depends = dbus
 	depends = gamescope
+	depends = ibus
 	depends = jupiter-hw-support>=20260211.1-2
 	depends = kconfig
 	depends = python
 	depends = steam
 	depends = systemd
 	depends = util-linux
-	optdepends = ibus: Multilingual input support
 	optdepends = galileo-mura: Mura compensation for Steam Deck OLED
 	optdepends = mangohud: Mangoapp
 	provides = gamescope-session-git

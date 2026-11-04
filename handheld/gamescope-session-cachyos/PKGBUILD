@@ -12,6 +12,7 @@ depends=(
     'coreutils'
     'dbus'
     'gamescope'
+    'ibus'
     'jupiter-hw-support>=20260211.1-2'
     'kconfig'
     'python'
@@ -21,7 +22,6 @@ depends=(
 )
 makedepends=('git')
 optdepends=(
-    'ibus: Multilingual input support'
     'galileo-mura: Mura compensation for Steam Deck OLED'
     'mangohud: Mangoapp'
 )
