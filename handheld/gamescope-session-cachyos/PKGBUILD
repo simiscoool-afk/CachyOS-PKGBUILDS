@@ -30,12 +30,11 @@ conflicts=('gamescope-session-git' 'gamescope-session-steam-git')
 source=("${pkgname}::git+${url}.git#tag=${pkgver}"
         "session-cleanup.patch")
 sha256sums=('6ade88ca4c6e66713010ccfcbc57be82037721f2ac13486b20a14f67267a7da1'
-            'f4dbb02c02f1ad3f985636eab48b7e26e8661bc89180e96a52b646a4b17effa2')
+            'db377c68fdc49c8562b2054fadca06c11a43cf902e90ae409847614942714e52')
 
 prepare() {
     cd "${pkgname}"
     git cherry-pick -n aea6a6cced80
-    # Backport the proposed cleanup until it is included in a source release.
     # https://github.com/CachyOS/gamescope-session/compare/cachyos...simiscoool-afk:handheld-experience-cleanup
     patch -Np1 -i "$srcdir/session-cleanup.patch"
 }

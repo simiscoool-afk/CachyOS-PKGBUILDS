@@ -31,6 +31,6 @@ pkgbase = cachyos-handheld
 	validpgpkeys = B1B70BB1CD56047DEF31DE2EB62C3D10C54D5DA9
 	validpgpkeys = E18447AC260021D31F3FF6C4C8A2A4774B8B63C4
 	sha256sums = b52ccfab1675d0bea373970fad596efe15269ed0e53e9ffbcebfc27f67aa00b5
-	sha256sums = 93c7dbbd18fb49959b8b414a84c9d28f9a81f2a42dabd6582d9617023a97f6f5
+	sha256sums = 76e1144ace515279e95b8e339bc79b98ee7c695852112ac730bb3a15ef505709
 
 pkgname = cachyos-handheld

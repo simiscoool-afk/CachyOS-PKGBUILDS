@@ -42,7 +42,6 @@ post_install() {
   # Enable Plasma Login Manager
   ln -sf /usr/lib/systemd/system/plasmalogin.service /etc/systemd/system/display-manager.service
 
-  # Apply the handheld default, respecting administrator preset overrides.
   systemctl --global preset cachyos-handheld-updater-setup.path
 
   # First boot setup
@@ -59,7 +58,6 @@ pre_upgrade() {
 }
 
 post_upgrade() {
-  # Enable the new setup only on migration; preserve later administrator choices.
   if (( $(vercmp "$2" "1.4.2-2") < 0 )); then
     systemctl --global preset cachyos-handheld-updater-setup.path
   fi
