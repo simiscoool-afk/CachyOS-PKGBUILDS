@@ -30,7 +30,7 @@ conflicts=('gamescope-session-git' 'gamescope-session-steam-git')
 source=("${pkgname}::git+${url}.git#tag=${pkgver}"
         "session-cleanup.patch")
 sha256sums=('6ade88ca4c6e66713010ccfcbc57be82037721f2ac13486b20a14f67267a7da1'
-            'db377c68fdc49c8562b2054fadca06c11a43cf902e90ae409847614942714e52')
+            'f8e0e518362755cc371b770b00dcc6d97b32d419f5ea23ce3f4671e2dd762784')
 
 prepare() {
     cd "${pkgname}"

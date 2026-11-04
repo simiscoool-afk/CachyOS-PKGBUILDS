@@ -26,6 +26,6 @@ pkgbase = gamescope-session-cachyos
 	source = gamescope-session-cachyos::git+https://github.com/CachyOS/gamescope-session.git#tag=1.1.6
 	source = session-cleanup.patch
 	sha256sums = 6ade88ca4c6e66713010ccfcbc57be82037721f2ac13486b20a14f67267a7da1
-	sha256sums = db377c68fdc49c8562b2054fadca06c11a43cf902e90ae409847614942714e52
+	sha256sums = f8e0e518362755cc371b770b00dcc6d97b32d419f5ea23ce3f4671e2dd762784
 
 pkgname = gamescope-session-cachyos

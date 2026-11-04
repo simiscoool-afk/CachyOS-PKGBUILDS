@@ -42,33 +42,3 @@ index b082209..7f34956 100755
  if [[ ! -d "$(dirname "$CONF_FILE")" ]]; then
      mkdir -p "$(dirname "$CONF_FILE")"
  fi
-diff --git a/usr/lib/systemd/user/gamescope-xbindkeys.service b/usr/lib/systemd/user/gamescope-xbindkeys.service
-index 520ca28..6cb05de 100644
---- a/usr/lib/systemd/user/gamescope-xbindkeys.service
-+++ b/usr/lib/systemd/user/gamescope-xbindkeys.service
-@@ -1,4 +1,5 @@
- [Unit]
-+ConditionFileIsExecutable=/usr/bin/xbindkeys
- Description=Xbindkeys for Gamescope session
- PartOf=graphical-session.target
- After=graphical-session.target
-diff --git a/usr/lib/systemd/user/ibus-gamescope.service b/usr/lib/systemd/user/ibus-gamescope.service
-index f1cc262..5d9e28f 100644
---- a/usr/lib/systemd/user/ibus-gamescope.service
-+++ b/usr/lib/systemd/user/ibus-gamescope.service
-@@ -1,4 +1,5 @@
- [Unit]
-+ConditionFileIsExecutable=/usr/bin/ibus-daemon
- Description=Wrapper for Ibus
- PartOf=graphical-session.target
- After=graphical-session.target
-diff --git a/usr/lib/systemd/user/steam-notif-daemon.service b/usr/lib/systemd/user/steam-notif-daemon.service
-index a432f0f..5a75011 100644
---- a/usr/lib/systemd/user/steam-notif-daemon.service
-+++ b/usr/lib/systemd/user/steam-notif-daemon.service
-@@ -1,4 +1,5 @@
- [Unit]
-+ConditionFileIsExecutable=/usr/bin/steam_notif_daemon
- Description=Steam Notification Daemon
- After=graphical-session.target
- PartOf=graphical-session.target
