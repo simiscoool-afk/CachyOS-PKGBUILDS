@@ -14,7 +14,7 @@ update_user() {
   sed -ri "s|^(User=).*|User=${usr}|" /etc/plasmalogin.conf.d/steam-deckify.conf
   # Decky loader
   sed -ri "s|^(DECKY_USER=).*|DECKY_USER=${usr}|" /etc/environment.d/handheld.conf
-  sed -ri "s|^(DECKY_USER_HOME=).*|DECK_USER_HOME=/home/${usr}|" /etc/environment.d/handheld.conf
+  sed -ri "s|^(DECKY_USER_HOME=).*|DECKY_USER_HOME=/home/${usr}|" /etc/environment.d/handheld.conf
 
   # Return to Gaming Mode file
   cp /etc/skel/Desktop/steamos-gamemode.desktop /home/${usr}/Desktop/steamos-gamemode.desktop
